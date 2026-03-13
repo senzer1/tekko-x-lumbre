@@ -13,7 +13,10 @@ const nextConfig = {
     ],
   },
 
-  // Security headers for all routes
+  // Disable the X-Powered-By header (leaks framework info)
+  poweredByHeader: false,
+
+  // Security headers for public-facing routes (excluding /studio)
   async headers() {
     return [
       {
@@ -24,43 +27,32 @@ const nextConfig = {
             value: 'on',
           },
           {
-            key: 'X-Frame-Options',
-            value: 'SAMEORIGIN',
-          },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin',
-          },
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=(self), interest-cohort=()',
-          },
-          {
             key: 'Strict-Transport-Security',
-            value: 'max-age=31536000; includeSubDomains',
-          },
-          {
-            key: 'X-XSS-Protection',
-            value: '1; mode=block',
+            value: 'max-age=63072000; includeSubDomains; preload',
           },
           {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.sanity.io",
+              // unsafe-inline required by Next.js for hydration scripts
+              // unsafe-eval removed — not needed by our client code
+              "script-src 'self' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: blob: https://cdn.sanity.io https://images.unsplash.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' https://*.sanity.io https://*.apicdn.sanity.io wss://*.sanity.io",
-              "frame-src 'self' https://www.google.com https://maps.google.com",
-              "frame-ancestors 'self'",
+              "connect-src 'self' https://*.sanity.io https://*.apicdn.sanity.io",
+              "frame-src 'none'",
+              "frame-ancestors 'none'",
+              "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
+              "upgrade-insecure-requests",
             ].join('; '),
+          },
+          // Prevent Spectre-class side-channel attacks
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'credentialless',
           },
         ],
       },

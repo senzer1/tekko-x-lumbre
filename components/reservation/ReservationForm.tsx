@@ -18,6 +18,8 @@ export default function ReservationForm({ phone = '+34 000 000 000' }: { phone?:
   const [fd, setFd] = useState<ReservationFormData>(INIT)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [status, setStatus] = useState<FormStatus>('idle')
+  // Honeypot field — invisible to humans, bots auto-fill it
+  const [honeypot, setHoneypot] = useState('')
 
   const onChange = useCallback((e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -35,13 +37,15 @@ export default function ReservationForm({ phone = '+34 000 000 000' }: { phone?:
     if (!fd.fecha) errs.fecha = 'Obligatorio'
     if (!fd.hora) errs.hora = 'Obligatorio'
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
+    // Honeypot check — if filled, silently pretend success (fool the bot)
+    if (honeypot) { setStatus('success'); return }
     setStatus('submitting'); setErrors({})
     try {
-      const res = await fetch('/api/reservar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fd) })
+      const res = await fetch('/api/reservar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...fd, _hp: honeypot }) })
       if (!res.ok) throw new Error()
       setStatus('success'); setFd(INIT)
     } catch { setStatus('error') }
-  }, [fd])
+  }, [fd, honeypot])
 
   const today = new Date().toISOString().split('T')[0]
   const inputCls = (err?: string) => `w-full bg-transparent border-0 border-b py-3 px-0 font-body text-sm text-crema placeholder:text-ceniza/30 transition-colors duration-300 focus:outline-none focus:ring-0 ${err ? 'border-brasa' : 'border-ceniza/20 focus:border-b-brasa'}`
@@ -60,6 +64,11 @@ export default function ReservationForm({ phone = '+34 000 000 000' }: { phone?:
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-8">
       {status === 'error' && <div className="p-4 rounded-lg border border-brasa/30 bg-brasa/5 font-body text-sm text-brasa" role="alert">Algo salió mal. Llámanos al <a href={`tel:${phone.replace(/\s/g, '')}`} className="underline">{phone}</a>.</div>}
+      {/* Honeypot — visually hidden, traps bots that auto-fill all fields */}
+      <div aria-hidden="true" className="absolute -left-[9999px] -top-[9999px] h-0 w-0 overflow-hidden">
+        <label htmlFor="company_website">Website</label>
+        <input id="company_website" name="company_website" type="text" tabIndex={-1} autoComplete="off" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} />
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-8">
         <div><label className="block font-body text-xs text-ceniza uppercase tracking-[0.15em] mb-2">Nombre<span className="text-brasa ml-1">*</span></label><input name="nombre" value={fd.nombre} onChange={onChange} placeholder="Tu nombre" className={inputCls(errors.nombre)} />{errors.nombre && <p className="text-xs text-brasa mt-1">{errors.nombre}</p>}</div>
         <div><label className="block font-body text-xs text-ceniza uppercase tracking-[0.15em] mb-2">Email<span className="text-brasa ml-1">*</span></label><input name="email" type="email" value={fd.email} onChange={onChange} placeholder="tu@email.com" className={inputCls(errors.email)} />{errors.email && <p className="text-xs text-brasa mt-1">{errors.email}</p>}</div>

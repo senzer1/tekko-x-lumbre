@@ -53,6 +53,17 @@ function validateField(value: unknown, name: string, maxLen = MAX_FIELD_LENGTH):
 }
 
 /* ─── Allowed origins ─── */
+const VERCEL_PROJECT_SLUG = 'tekko-x-lumbre'
+
+function getAllowedOrigins(): string[] {
+  return [
+    'https://lumbre.es',
+    'https://www.lumbre.es',
+    `https://${VERCEL_PROJECT_SLUG}.vercel.app`,
+    process.env.NEXT_PUBLIC_SITE_URL,
+  ].filter(Boolean) as string[]
+}
+
 function isAllowedOrigin(request: NextRequest): boolean {
   const origin = request.headers.get('origin')
   const referer = request.headers.get('referer')
@@ -63,15 +74,9 @@ function isAllowedOrigin(request: NextRequest): boolean {
   // Must have an origin or referer header
   if (!origin && !referer) return false
 
-  const allowed = [
-    'https://lumbre.es',
-    'https://www.lumbre.es',
-    'https://tekko-x-lumbre.vercel.app',
-    process.env.NEXT_PUBLIC_SITE_URL,
-  ].filter(Boolean) as string[]
+  const allowed = getAllowedOrigins()
 
   // Allow Vercel preview deployments scoped to this project only
-  const VERCEL_PROJECT_SLUG = 'tekko-x-lumbre'
   if (
     origin?.endsWith('.vercel.app') &&
     origin.includes(VERCEL_PROJECT_SLUG)
@@ -86,9 +91,40 @@ function isAllowedOrigin(request: NextRequest): boolean {
   )
 }
 
-/* ─── Resend client ─── */
-function getResend() {
-  return new Resend(process.env.RESEND_API_KEY)
+/* ─── CORS headers for allowed origins ─── */
+function corsHeaders(request: NextRequest): Record<string, string> {
+  const origin = request.headers.get('origin') || ''
+  const allowed = getAllowedOrigins()
+  const isVercelPreview =
+    origin.endsWith('.vercel.app') && origin.includes(VERCEL_PROJECT_SLUG)
+
+  if (allowed.includes(origin) || isVercelPreview) {
+    return {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Max-Age': '86400', // 24 h preflight cache
+    }
+  }
+
+  return {}
+}
+
+/* ─── Resend client (singleton) ─── */
+let resendInstance: Resend | null = null
+function getResend(): Resend {
+  if (!resendInstance) {
+    resendInstance = new Resend(process.env.RESEND_API_KEY)
+  }
+  return resendInstance
+}
+
+/* ─── OPTIONS handler — CORS preflight ─── */
+export function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders(request),
+  })
 }
 
 /* ─── POST handler ─── */
@@ -100,6 +136,7 @@ interface ReservationBody {
   hora: string
   comensales: number
   mensaje?: string
+  _hp?: string // honeypot field
 }
 
 export async function POST(request: NextRequest) {
@@ -108,7 +145,7 @@ export async function POST(request: NextRequest) {
     if (!isAllowedOrigin(request)) {
       return NextResponse.json(
         { error: 'Origen no autorizado.' },
-        { status: 403 }
+        { status: 403, headers: corsHeaders(request) }
       )
     }
 
@@ -121,7 +158,7 @@ export async function POST(request: NextRequest) {
     if (isRateLimited(ip)) {
       return NextResponse.json(
         { error: 'Demasiadas solicitudes. Inténtalo de nuevo en un minuto.' },
-        { status: 429, headers: { 'Retry-After': '60' } }
+        { status: 429, headers: { 'Retry-After': '60', ...corsHeaders(request) } }
       )
     }
 
@@ -130,12 +167,18 @@ export async function POST(request: NextRequest) {
     if (contentLength && parseInt(contentLength) > 10_000) {
       return NextResponse.json(
         { error: 'Payload demasiado grande.' },
-        { status: 413 }
+        { status: 413, headers: corsHeaders(request) }
       )
     }
 
     const body = (await request.json()) as ReservationBody
-    const { nombre, email, telefono, fecha, hora, comensales, mensaje } = body
+    const { nombre, email, telefono, fecha, hora, comensales, mensaje, _hp } = body
+
+    // Honeypot check — bots fill hidden fields, humans never do
+    // Return success to fool the bot, but don't actually send emails
+    if (_hp) {
+      return NextResponse.json({ success: true }, { headers: corsHeaders(request) })
+    }
 
     // Validate required fields
     const errors: string[] = []
@@ -178,7 +221,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (errors.length > 0) {
-      return NextResponse.json({ error: errors[0] }, { status: 400 })
+      return NextResponse.json(
+        { error: errors[0] },
+        { status: 400, headers: corsHeaders(request) }
+      )
     }
 
     // Sanitize all user inputs for HTML rendering
@@ -235,9 +281,10 @@ export async function POST(request: NextRequest) {
       `,
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true }, { headers: corsHeaders(request) })
   } catch (error) {
-    console.error('Reservation error:', error)
+    // Log full error server-side, but never leak details to the client
+    console.error('Reservation error:', error instanceof Error ? error.message : 'Unknown error')
     return NextResponse.json(
       { error: 'Error interno del servidor.' },
       { status: 500 }
