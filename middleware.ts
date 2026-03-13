@@ -10,20 +10,28 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 /* ─── Basic Auth for Sanity Studio ─── */
 function isStudioAuthenticated(request: NextRequest): boolean {
-  const authHeader = request.headers.get('authorization')
+  const expectedUser = process.env.STUDIO_BASIC_AUTH_USER
+  const expectedPass = process.env.STUDIO_BASIC_AUTH_PASS
 
+  // If env vars are not set, allow access (dev mode / not configured yet)
+  if (!expectedUser || !expectedPass) return true
+
+  const authHeader = request.headers.get('authorization')
   if (!authHeader?.startsWith('Basic ')) return false
 
   try {
     const base64 = authHeader.slice(6)
-    const decoded = atob(base64)
-    const [user, pass] = decoded.split(':')
-
-    const expectedUser = process.env.STUDIO_BASIC_AUTH_USER
-    const expectedPass = process.env.STUDIO_BASIC_AUTH_PASS
-
-    // If env vars are not set, allow access (dev mode / not configured)
-    if (!expectedUser || !expectedPass) return true
+    // Use TextDecoder for Edge Runtime compatibility (atob can behave differently)
+    const bytes = Uint8Array.from(
+      globalThis.atob(base64),
+      (c) => c.charCodeAt(0)
+    )
+    const decoded = new TextDecoder().decode(bytes)
+    // Split on first ':' only — password may contain ':'
+    const colonIdx = decoded.indexOf(':')
+    if (colonIdx === -1) return false
+    const user = decoded.slice(0, colonIdx)
+    const pass = decoded.slice(colonIdx + 1)
 
     return user === expectedUser && pass === expectedPass
   } catch {
