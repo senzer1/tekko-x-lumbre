@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Lenis smooth scroll ────────────────── */
+html.lenis, html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+/* ─── Base ───────────────────────────────── */
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    @apply bg-negro text-crema overflow-x-hidden;
+  }
+  ::selection {
+    @apply bg-brasa/30 text-crema;
+  }
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-negro; }
+  ::-webkit-scrollbar-thumb { @apply bg-ceniza/20 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-ceniza/40; }
+}
+
+/* ─── Utilities ──────────────────────────── */
+@layer utilities {
+  .text-display { @apply font-display italic font-light; }
+  .text-label { @apply font-body text-xs uppercase tracking-[0.2em]; }
+  .section-padding { @apply px-6 md:px-10 lg:px-16 py-20 md:py-28 lg:py-36; }
+}
+
+/* ─── Grain overlay ──────────────────────── */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.03;
+  mix-blend-mode: multiply;
+}
+.grain-overlay::before {
+  content: '';
+  position: absolute;
+  inset: -200%;
+  width: 400%;
+  height: 400%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  animation: grain 8s steps(10) infinite;
+}
+
+/* ─── Custom cursor ──────────────────────── */
+.custom-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(245, 239, 228, 0.4);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9998;
+  transition: width 0.3s, height 0.3s, border-color 0.3s;
+  mix-blend-mode: difference;
+}
+.custom-cursor.hover {
+  width: 48px;
+  height: 48px;
+  border-color: rgba(232, 82, 26, 0.6);
+}
+
+/* ─── Scroll reveal ──────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+.reveal-left {
+  opacity: 0;
+  transform: translateX(30px);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+.reveal.visible,
+.reveal-left.visible {
+  opacity: 1;
+  transform: translate(0);
+}
+
+/* ─── Menu filter ────────────────────────── */
+.filter-btn {
+  @apply shrink-0 px-5 py-2.5 border border-ceniza/20 rounded-full font-body text-xs uppercase tracking-[0.15em] text-ceniza transition-all duration-300;
+}
+.filter-btn:hover { @apply border-ceniza/40 text-crema; }
+.filter-btn.active {
+  @apply border-brasa bg-brasa text-crema;
+  box-shadow: 0 0 20px rgba(232, 82, 26, 0.15);
+}
+
+/* ─── Form inputs ────────────────────────── */
+.form-input {
+  @apply w-full bg-transparent border-0 border-b border-ceniza/20 py-3 px-0 font-body text-sm text-crema placeholder:text-ceniza/30 transition-colors duration-300;
+}
+.form-input:focus {
+  @apply border-b-brasa outline-none ring-0;
+}
+.form-label {
+  @apply block font-body text-xs text-ceniza uppercase tracking-[0.15em] mb-2;
+}
+
+/* ─── Reduced motion ─────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal-left { opacity: 1; transform: none; transition: none; }
+  .grain-overlay::before { animation: none; }
+  .custom-cursor { display: none; }
+}
+
+/* ─── Touch devices ──────────────────────── */
+@media (pointer: coarse) {
+  .custom-cursor { display: none; }
+}
