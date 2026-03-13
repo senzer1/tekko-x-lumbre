@@ -66,11 +66,20 @@ function isAllowedOrigin(request: NextRequest): boolean {
   const allowed = [
     'https://lumbre.es',
     'https://www.lumbre.es',
+    'https://tekko-x-lumbre.vercel.app',
     process.env.NEXT_PUBLIC_SITE_URL,
   ].filter(Boolean) as string[]
 
-  // Also allow Vercel preview deployments
-  if (origin?.endsWith('.vercel.app') || referer?.includes('.vercel.app')) return true
+  // Allow Vercel preview deployments scoped to this project only
+  const VERCEL_PROJECT_SLUG = 'tekko-x-lumbre'
+  if (
+    origin?.endsWith('.vercel.app') &&
+    origin.includes(VERCEL_PROJECT_SLUG)
+  ) return true
+  if (
+    referer?.includes('.vercel.app') &&
+    referer.includes(VERCEL_PROJECT_SLUG)
+  ) return true
 
   return allowed.some(
     (url) => origin === url || referer?.startsWith(url)
@@ -112,7 +121,7 @@ export async function POST(request: NextRequest) {
     if (isRateLimited(ip)) {
       return NextResponse.json(
         { error: 'Demasiadas solicitudes. Inténtalo de nuevo en un minuto.' },
-        { status: 429 }
+        { status: 429, headers: { 'Retry-After': '60' } }
       )
     }
 
@@ -150,7 +159,7 @@ export async function POST(request: NextRequest) {
     if (timeErr) errors.push(timeErr)
     else if (!TIME_REGEX.test(hora)) errors.push('Formato de hora no válido')
 
-    if (typeof comensales !== 'number' || comensales < 1 || comensales > 20) {
+    if (typeof comensales !== 'number' || !Number.isFinite(comensales) || !Number.isInteger(comensales) || comensales < 1 || comensales > 20) {
       errors.push('Número de comensales no válido (1-20)')
     }
 
