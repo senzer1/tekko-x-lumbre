@@ -1,20 +1,23 @@
-import { createClient } from 'next-sanity'
-import { apiVersion, dataset, projectId } from '@/sanity/env'
+import { createClient, type SanityClient } from 'next-sanity'
+import { apiVersion, dataset, projectId, isSanityConfigured } from '@/sanity/env'
 
-export const client = createClient({
-  projectId,
-  dataset,
-  apiVersion,
-  useCdn: true,
-})
+/**
+ * Minimal stub that returns empty results when Sanity is not configured.
+ * This lets the build succeed and pages render with static fallback content.
+ */
+const nullClient = {
+  fetch: async () => null,
+  config: () => ({ projectId: '', dataset: '' }),
+} as unknown as SanityClient
 
-export const previewClient = createClient({
-  projectId,
-  dataset,
-  apiVersion,
-  useCdn: false,
-  token: process.env.SANITY_API_TOKEN,
-})
+function buildClient(useCdn: boolean, token?: string): SanityClient {
+  if (!isSanityConfigured) return nullClient
+  return createClient({ projectId, dataset, apiVersion, useCdn, token })
+}
+
+export const client = buildClient(true)
+
+export const previewClient = buildClient(false, process.env.SANITY_API_TOKEN)
 
 export function getClient(preview = false) {
   return preview ? previewClient : client
